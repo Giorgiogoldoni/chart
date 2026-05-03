@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAPTOR Chart Engine</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════
+   RESET & ROOT
+═══════════════════════════════════════ */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --bg:        #ffffff;
+  --bg1:       #f7f8fa;
+  --bg2:       #f0f2f5;
+  --bg3:       #e8ebf0;
+  --bg4:       #dde1e8;
+  --border:    #d0d5de;
+  --border2:   #c4c9d4;
+  --text1:     #111827;
+  --text2:     #4b5563;
+  --text3:     #9ca3af;
+  --text4:     #d1d5db;
+  --bull:      #059669;
+  --bull-bg:   #ecfdf5;
+  --bull-bd:   #a7f3d0;
+  --bear:      #dc2626;
+  --bear-bg:   #fef2f2;
+  --bear-bd:   #fca5a5;
+  --warn:      #d97706;
+  --warn-bg:   #fffbeb;
+  --warn-bd:   #fcd34d;
+  --accent:    #1d4ed8;
+  --accent-bg: #eff6ff;
+  --accent-bd: #bfdbfe;
+  --buy1:      #0ea5e9;
+  --buy2:      #059669;
+  --buy3:      #16a34a;
+  --exit1:     #d97706;
+  --exit2:     #ea580c;
+  --exit3:     #dc2626;
+  --kama-fast: #b45309;
+  --kama-slow: #7c3aed;
+  --sar-col:   #db2777;
+  --ema20:     #0891b2;
+  --ema50:     #c2410c;
+  --bb-col:    #64748b;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow:    0 4px 6px rgba(0,0,0,.05), 0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,.08), 0 4px 10px rgba(0,0,0,.05);
+  --radius:    8px;
+  --radius-sm: 5px;
+}
+
+html { font-size: 14px; }
+body {
+  background: var(--bg);
+  color: var(--text1);
+  font-family: 'Rajdhani', sans-serif;
+  min-height: 100vh;
+}
+
+/* ═══════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ═══════════════════════════════════════
+   HEADER
+═══════════════════════════════════════ */
+.header {
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  box-shadow: var(--shadow-sm);
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--text1);
+  flex-shrink: 0;
+}
+.logo em { color: var(--accent); font-style: normal; }
+
+.header-divider { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; }
+
+.ticker-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ticker-input {
+  border: 1.5px solid var(--border2);
+  background: var(--bg1);
+  color: var(--text1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  width: 140px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ticker-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(29,78,216,.1);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 7px 20px;
+  border-radius: var(--radius-sm);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: background .15s, transform .1s, box-shadow .15s;
+  box-shadow: 0 2px 4px rgba(29,78,216,.25);
+}
+.btn-primary:hover { background: #1e40af; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(29,78,216,.3); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  background: var(--bg2);
+  color: var(--text2);
+  border: 1.5px solid var(--border);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btn-secondary:hover { background: var(--bg3); color: var(--text1); border-color: var(--border2); }
+
+.btn-excel {
+  background: #166534;
+  color: #fff;
+  border: none;
+  padding: 7px 16px;
+  border-radius: var(--radius-sm);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-excel:hover { background: #14532d; }
+.btn-excel:disabled { background: var(--bg3); color: var(--text3); cursor: not-allowed; }
+
+.header-price {
+  margin-left: auto;
+  text-align: right;
+  flex-shrink: 0;
+}
+.header-price-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text1);
+  line-height: 1;
+}
+.header-price-chg {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  margin-top: 2px;
+}
+.pos { color: var(--bull); }
+.neg { color: var(--bear); }
+.neu { color: var(--text3); }
+
+.error-bar {
+  background: var(--bear-bg);
+  color: var(--bear);
+  border: 1px solid var(--bear-bd);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  display: none;
+}
+
+/* ═══════════════════════════════════════
+   TABS
+═══════════════════════════════════════ */
+.tabs {
+  background: var(--bg);
+  border-bottom: 1.5px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  gap: 0;
+}
+.tab {
+  padding: 10px 20px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text3);
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1.5px;
+  transition: all .15s;
+  text-transform: uppercase;
+}
+.tab:hover { color: var(--text2); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ═══════════════════════════════════════
+   TAB PANELS
+═══════════════════════════════════════ */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ═══════════════════════════════════════
+   CHART TAB
+═══════════════════════════════════════ */
+.chart-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  height: calc(100vh - 108px);
+}
+
+/* TOOLBAR */
+.toolbar {
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  padding: 7px 16px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+.toolbar-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin-right: 2px;
+}
+.ind-btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  color: var(--text3);
+  transition: all .12s;
+}
+.ind-btn:hover { color: var(--text2); border-color: var(--border2); }
+.ind-btn.on { color: var(--bg); }
+.ind-btn.on.kf { background: var(--kama-fast); border-color: var(--kama-fast); }
+.ind-btn.on.ks { background: var(--kama-slow); border-color: var(--kama-slow); }
+.ind-btn.on.sr { background: var(--sar-col); border-color: var(--sar-col); }
+.ind-btn.on.e20 { background: var(--ema20); border-color: var(--ema20); }
+.ind-btn.on.e50 { background: var(--ema50); border-color: var(--ema50); }
+.ind-btn.on.bb { background: var(--bb-col); border-color: var(--bb-col); }
+.ind-btn.on.sg { background: var(--accent); border-color: var(--accent); }
+.ind-btn.on.rsi { background: #6d28d9; border-color: #6d28d9; }
+.ind-btn.on.er { background: #0f766e; border-color: #0f766e; }
+.ind-btn.on.ao { background: #b45309; border-color: #b45309; }
+.tsep { width:1px; height:18px; background:var(--border); margin:0 4px; }
+
+/* CHART AREA */
+.chart-area {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+  min-height: 0;
+}
+.chart-panels { flex:1; display:flex; flex-direction:column; min-height:0; }
+#chart-main { flex:1; min-height:0; }
+.sub-panel { border-top:1px solid var(--border); position:relative; flex-shrink:0; }
+.sub-label {
+  position:absolute; top:4px; left:8px;
+  font-size:9px; font-weight:700; letter-spacing:1.5px;
+  color:var(--text3); z-index:10; pointer-events:none;
+  text-transform:uppercase;
+}
+#chart-rsi { height:72px; }
+#chart-er  { height:72px; }
+#chart-ao  { height:72px; }
+
+/* SIDEBAR */
+.sidebar {
+  background: var(--bg1);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.s-section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.s-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+/* Signal badge */
+.sig-badge {
+  width: 100%;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  border: 1.5px solid;
+  margin-bottom: 8px;
+}
+.sb-buy1  { background: #e0f2fe; color: var(--buy1); border-color: #7dd3fc; }
+.sb-buy2  { background: var(--bull-bg); color: var(--buy2); border-color: var(--bull-bd); }
+.sb-buy3  { background: #f0fdf4; color: var(--buy3); border-color: #86efac; }
+.sb-exit1 { background: var(--warn-bg); color: var(--exit1); border-color: var(--warn-bd); }
+.sb-exit1a{ background: #fff7ed; color: var(--exit2); border-color: #fdba74; }
+.sb-exit2 { background: #fff7ed; color: var(--exit2); border-color: #fdba74; }
+.sb-exit3 { background: var(--bear-bg); color: var(--exit3); border-color: var(--bear-bd); }
+.sb-watch { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-bd); }
+.sb-none  { background: var(--bg2); color: var(--text3); border-color: var(--border); }
+
+/* Conditions */
+.cond-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--text2);
+  padding: 2px 0;
+}
+.cdot {
+  width:8px; height:8px; border-radius:50%; flex-shrink:0;
+}
+.cdot.ok { background: var(--bull); }
+.cdot.ko { background: var(--bear); }
+
+/* Metrics */
+.m-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+.metric {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  box-shadow: var(--shadow-sm);
+}
+.m-label { font-size:9px; font-weight:700; letter-spacing:1.5px; color:var(--text3); text-transform:uppercase; margin-bottom:2px; }
+.m-val { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--text1); }
+.m-val.bull { color: var(--bull); }
+.m-val.bear { color: var(--bear); }
+.m-val.warn { color: var(--warn); }
+
+/* Levels */
+.lev-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding: 6px 10px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  border-left: 3px solid transparent; margin-bottom:4px;
+  box-shadow: var(--shadow-sm);
+}
+.lev-row.entry { border-left-color: var(--bull); }
+.lev-row.stop  { border-left-color: var(--bear); }
+.lev-row.tgt   { border-left-color: var(--accent); }
+.lev-label { font-size:10px; font-weight:700; letter-spacing:.5px; color:var(--text3); }
+.lev-val   { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--text1); }
+
+/* ═══════════════════════════════════════
+   TRADES TAB
+═══════════════════════════════════════ */
+#tab-trades {
+  padding: 24px;
+  background: var(--bg);
+  min-height: calc(100vh - 108px);
+}
+
+.trades-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.trades-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text1);
+  letter-spacing: 1px;
+}
+.trades-subtitle {
+  font-size: 12px;
+  color: var(--text3);
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Perf stats */
+.perf-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.perf-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-sm);
+}
+.pc-label { font-size:9px; font-weight:700; letter-spacing:2px; color:var(--text3); text-transform:uppercase; margin-bottom:4px; }
+.pc-val   { font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; color:var(--text1); }
+.pc-val.bull { color:var(--bull); }
+.pc-val.bear { color:var(--bear); }
+.pc-val.warn { color:var(--warn); }
+
+/* Equity canvas */
+.equity-wrap {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+.equity-title { font-size:10px; font-weight:700; letter-spacing:2px; color:var(--text3); text-transform:uppercase; margin-bottom:8px; }
+#equity-canvas { width:100%; height:90px; display:block; }
+
+/* Trades table */
+.trades-table-wrap {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+thead {
+  background: var(--bg2);
+  border-bottom: 1.5px solid var(--border);
+}
+th {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text3);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bg2);
+  color: var(--text2);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg1); }
+
+.sig-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  white-space: nowrap;
+}
+.sp-buy1  { background:#e0f2fe; color:var(--buy1); }
+.sp-buy2  { background:var(--bull-bg); color:var(--buy2); }
+.sp-buy3  { background:#f0fdf4; color:var(--buy3); }
+.sp-exit1 { background:var(--warn-bg); color:var(--exit1); }
+.sp-exit1a{ background:#fff7ed; color:var(--exit2); }
+.sp-exit2 { background:#fff7ed; color:var(--exit2); }
+.sp-exit3 { background:var(--bear-bg); color:var(--exit3); }
+.sp-open  { background:var(--accent-bg); color:var(--accent); }
+
+.pnl-pos { color:var(--bull); font-weight:700; font-family:'JetBrains Mono',monospace; }
+.pnl-neg { color:var(--bear); font-weight:700; font-family:'JetBrains Mono',monospace; }
+.mono    { font-family:'JetBrains Mono',monospace; }
+
+/* ═══════════════════════════════════════
+   DOC TAB
+═══════════════════════════════════════ */
+#tab-doc {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+
+.doc-header {
+  text-align: center;
+  margin-bottom: 48px;
+  padding-bottom: 32px;
+  border-bottom: 2px solid var(--border);
+}
+.doc-title {
+  font-family: 'Crimson Pro', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--text1);
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+.doc-subtitle {
+  font-size: 13px;
+  color: var(--text3);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.doc-meta {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text3);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.doc-section {
+  margin-bottom: 40px;
+}
+.doc-h2 {
+  font-family: 'Crimson Pro', serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text1);
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1.5px solid var(--border);
+}
+.doc-h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text1);
+  letter-spacing: .5px;
+  margin: 16px 0 6px;
+}
+.doc-p {
+  font-size: 13.5px;
+  color: var(--text2);
+  line-height: 1.7;
+  margin-bottom: 10px;
+  font-family: 'Crimson Pro', serif;
+}
+.doc-note {
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  padding: 8px 14px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin: 10px 0;
+  font-size: 12.5px;
+  color: var(--accent);
+  font-family: 'Crimson Pro', serif;
+  font-style: italic;
+}
+
+.doc-formula {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  margin: 10px 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text1);
+  line-height: 1.8;
+  overflow-x: auto;
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12.5px;
+}
+.doc-table th {
+  background: var(--bg2);
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text3);
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+.doc-table td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-size: 12.5px;
+}
+.doc-table tr:nth-child(even) td { background: var(--bg1); }
+
+/* Signal doc pills */
+.sdoc-buy1  { display:inline-block; padding:2px 8px; border-radius:3px; background:#e0f2fe; color:var(--buy1); font-weight:700; font-size:11px; }
+.sdoc-buy2  { display:inline-block; padding:2px 8px; border-radius:3px; background:var(--bull-bg); color:var(--buy2); font-weight:700; font-size:11px; }
+.sdoc-buy3  { display:inline-block; padding:2px 8px; border-radius:3px; background:#f0fdf4; color:var(--buy3); font-weight:700; font-size:11px; }
+.sdoc-exit1 { display:inline-block; padding:2px 8px; border-radius:3px; background:var(--warn-bg); color:var(--exit1); font-weight:700; font-size:11px; }
+.sdoc-exit1a{ display:inline-block; padding:2px 8px; border-radius:3px; background:#fff7ed; color:var(--exit2); font-weight:700; font-size:11px; }
+.sdoc-exit2 { display:inline-block; padding:2px 8px; border-radius:3px; background:#fff7ed; color:var(--exit2); font-weight:700; font-size:11px; }
+.sdoc-exit3 { display:inline-block; padding:2px 8px; border-radius:3px; background:var(--bear-bg); color:var(--exit3); font-weight:700; font-size:11px; }
+
+/* LOADING */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(255,255,255,.88);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 999; gap: 14px;
+  backdrop-filter: blur(3px);
+}
+.loading-overlay.hidden { display: none; }
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .65s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 3px; color: var(--text2);
+  text-transform: uppercase;
+}
+
+.no-data-msg {
+  text-align: center;
+  padding: 32px;
+  color: var(--text3);
+  font-size: 13px;
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="overlayText">INIZIALIZZAZIONE</div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">RAP<em>TOR</em></div>
+  <div class="header-divider"></div>
+  <div class="ticker-wrap">
+    <input class="ticker-input" id="tickerInput" value="SPY" maxlength="12" placeholder="TICKER">
+    <button class="btn-primary" onclick="loadTicker()">CARICA</button>
+  </div>
+  <div id="errorBar" class="error-bar"></div>
+  <button class="btn-excel" id="btnExcel" onclick="downloadExcel()" disabled>
+    ⬇ EXCEL
+  </button>
+  <div class="header-price" id="headerPrice" style="display:none">
+    <div class="header-price-val" id="hpVal">—</div>
+    <div class="header-price-chg" id="hpChg">—</div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('chart')">📈 Grafico</div>
+  <div class="tab" onclick="switchTab('trades')">📋 Trade &amp; Performance</div>
+  <div class="tab" onclick="switchTab('doc')">📄 Documento Tecnico</div>
+</div>
+
+<!-- ═══ TAB: CHART ═══ -->
+<div id="tab-chart" class="tab-panel active">
+  <div class="chart-layout">
+    <!-- TOOLBAR spanning full width -->
+    <div class="toolbar" style="grid-column:1/-1">
+      <span class="toolbar-label">Overlay</span>
+      <button class="ind-btn kf on" id="btn-kf" onclick="togInd('kf')">KAMA V</button>
+      <button class="ind-btn ks on" id="btn-ks" onclick="togInd('ks')">KAMA L</button>
+      <button class="ind-btn sr on" id="btn-sr" onclick="togInd('sr')">SAR</button>
+      <button class="ind-btn e20"   id="btn-e20" onclick="togInd('e20')">EMA 20</button>
+      <button class="ind-btn e50"   id="btn-e50" onclick="togInd('e50')">EMA 50</button>
+      <button class="ind-btn bb"    id="btn-bb"  onclick="togInd('bb')">BB</button>
+      <div class="tsep"></div>
+      <span class="toolbar-label">Pannelli</span>
+      <button class="ind-btn rsi on" id="btn-rsi" onclick="togPanel('rsi')">RSI 14</button>
+      <button class="ind-btn er on"  id="btn-er"  onclick="togPanel('er')">ER</button>
+      <button class="ind-btn ao on"  id="btn-ao"  onclick="togPanel('ao')">AO</button>
+      <div class="tsep"></div>
+      <button class="ind-btn sg on" id="btn-sg" onclick="togInd('sg')">⚡ Segnali</button>
+    </div>
+
+    <!-- CHART PANELS -->
+    <div class="chart-area">
+      <div class="chart-panels">
+        <div id="chart-main"></div>
+        <div class="sub-panel" id="panel-rsi"><div class="sub-label">RSI 14</div><div id="chart-rsi"></div></div>
+        <div class="sub-panel" id="panel-er"><div class="sub-label">ER — Efficiency Ratio</div><div id="chart-er"></div></div>
+        <div class="sub-panel" id="panel-ao"><div class="sub-label">AO — Awesome Oscillator</div><div id="chart-ao"></div></div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="s-section">
+        <div class="s-title">Segnale Attuale</div>
+        <div class="sig-badge sb-none" id="sigBadge">— NESSUN DATO —</div>
+        <div id="condList"></div>
+      </div>
+      <div class="s-section">
+        <div class="s-title">Indicatori Live</div>
+        <div class="m-grid">
+          <div class="metric"><div class="m-label">KAMA V</div><div class="m-val" id="mv-kf">—</div></div>
+          <div class="metric"><div class="m-label">KAMA L</div><div class="m-val" id="mv-ks">—</div></div>
+          <div class="metric"><div class="m-label">SAR</div><div class="m-val" id="mv-sr">—</div></div>
+          <div class="metric"><div class="m-label">ER</div><div class="m-val" id="mv-er">—</div></div>
+          <div class="metric"><div class="m-label">AO</div><div class="m-val" id="mv-ao">—</div></div>
+          <div class="metric"><div class="m-label">RSI 14</div><div class="m-val" id="mv-rsi">—</div></div>
+        </div>
+      </div>
+      <div class="s-section">
+        <div class="s-title">Livelli di Trading</div>
+        <div class="lev-row entry"><span class="lev-label">ENTRATA</span><span class="lev-val" id="lv-entry">—</span></div>
+        <div class="lev-row stop"><span class="lev-label">STOP MAX(SAR,KAMA L)</span><span class="lev-val" id="lv-stop">—</span></div>
+        <div class="lev-row tgt"><span class="lev-label">TARGET R/R 1:2</span><span class="lev-val" id="lv-tgt">—</span></div>
+      </div>
+      <div class="s-section">
+        <div class="s-title">Performance Rapida</div>
+        <div class="m-grid">
+          <div class="metric"><div class="m-label">Trade Tot</div><div class="m-val" id="qp-tot">—</div></div>
+          <div class="metric"><div class="m-label">Win Rate</div><div class="m-val" id="qp-wr">—</div></div>
+          <div class="metric"><div class="m-label">P&amp;L Tot %</div><div class="m-val" id="qp-pnl">—</div></div>
+          <div class="metric"><div class="m-label">Avg Trade</div><div class="m-val" id="qp-avg">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: TRADES ═══ -->
+<div id="tab-trades" class="tab-panel">
+  <div class="trades-header">
+    <div>
+      <div class="trades-title" id="tradesTitle">Trade &amp; Performance</div>
+      <div class="trades-subtitle" id="tradesSubtitle">Carica un ticker per vedere i trade</div>
+    </div>
+    <button class="btn-excel" id="btnExcel2" onclick="downloadExcel()" disabled>⬇ Scarica Excel</button>
+  </div>
+
+  <div class="perf-cards" id="perfCards">
+    <div class="perf-card"><div class="pc-label">Trade Totali</div><div class="pc-val" id="pc-tot">—</div></div>
+    <div class="perf-card"><div class="pc-label">Chiusi</div><div class="pc-val" id="pc-cls">—</div></div>
+    <div class="perf-card"><div class="pc-label">Win Rate</div><div class="pc-val" id="pc-wr">—</div></div>
+    <div class="perf-card"><div class="pc-label">P&amp;L Totale %</div><div class="pc-val" id="pc-pnl">—</div></div>
+    <div class="perf-card"><div class="pc-label">Best Trade</div><div class="pc-val bull" id="pc-best">—</div></div>
+    <div class="perf-card"><div class="pc-label">Worst Trade</div><div class="pc-val bear" id="pc-worst">—</div></div>
+    <div class="perf-card"><div class="pc-label">Avg Trade</div><div class="pc-val" id="pc-avg">—</div></div>
+    <div class="perf-card"><div class="pc-label">Max Drawdown</div><div class="pc-val bear" id="pc-dd">—</div></div>
+  </div>
+
+  <div class="equity-wrap">
+    <div class="equity-title">Equity Curve — P&amp;L Cumulativo (%)</div>
+    <canvas id="equity-canvas"></canvas>
+  </div>
+
+  <div class="trades-table-wrap">
+    <table id="tradesTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Segnale Entrata</th>
+          <th>Data Entrata</th>
+          <th>Prezzo Entrata</th>
+          <th>Segnale Uscita</th>
+          <th>Data Uscita</th>
+          <th>Prezzo Uscita</th>
+          <th>Durata (gg)</th>
+          <th>P&amp;L €</th>
+          <th>P&amp;L %</th>
+          <th>Stato</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody id="tradesTbody">
+        <tr><td colspan="12" class="no-data-msg">Carica un ticker per vedere i trade</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ TAB: DOC ═══ -->
+<div id="tab-doc" class="tab-panel">
+  <div id="tab-doc-inner">
+  <div class="doc-header">
+    <div class="doc-title">RAPTOR Chart Engine</div>
+    <div class="doc-subtitle">Metriche &amp; Indicatori Tecnici Implementati</div>
+    <div class="doc-meta">RAPTOR WEALTH MERIDIAN Platform · Giorgio Goldoni CFA · Maggio 2026</div>
+  </div>
+
+  <!-- 1. PANORAMICA -->
+  <div class="doc-section">
+    <div class="doc-h2">1. Panoramica degli Indicatori</div>
+    <p class="doc-p">Il RAPTOR Chart Engine implementa 8 indicatori tecnici calcolati interamente lato client in JavaScript puro, senza librerie di calcolo esterne. I dati storici sono scaricati via Yahoo Finance API con un intervallo di 2 anni su timeframe giornaliero.</p>
+    <table class="doc-table">
+      <thead><tr><th>Indicatore</th><th>Tipo</th><th>Parametri</th><th>Pannello</th></tr></thead>
+      <tbody>
+        <tr><td><strong>KAMA Veloce</strong></td><td>Overlay trend-following</td><td>n=10, fast=5, slow=20</td><td>Prezzo</td></tr>
+        <tr><td><strong>KAMA Lenta</strong></td><td>Overlay trend-following</td><td>n=10, fast=2, slow=30</td><td>Prezzo</td></tr>
+        <tr><td><strong>SAR Parabolico</strong></td><td>Overlay stop &amp; reverse</td><td>step=0.02, max=0.20</td><td>Prezzo</td></tr>
+        <tr><td><strong>EMA 20</strong></td><td>Overlay trend</td><td>period=20</td><td>Prezzo</td></tr>
+        <tr><td><strong>EMA 50</strong></td><td>Overlay trend</td><td>period=50</td><td>Prezzo</td></tr>
+        <tr><td><strong>Bande di Bollinger</strong></td><td>Overlay volatilità</td><td>period=20, σ=2</td><td>Prezzo</td></tr>
+        <tr><td><strong>RSI</strong></td><td>Oscillatore momentum</td><td>period=14 (Wilder)</td><td>Pannello RSI</td></tr>
+        <tr><td><strong>ER (Efficiency Ratio)</strong></td><td>Oscillatore di regime</td><td>period=10</td><td>Pannello ER</td></tr>
+        <tr><td><strong>AO (Awesome Oscillator)</strong></td><td>Oscillatore momentum</td><td>SMA 5/34 su midpoint</td><td>Pannello AO</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 2. KAMA -->
+  <div class="doc-section">
+    <div class="doc-h2">2. KAMA — Kaufman Adaptive Moving Average</div>
+    <p class="doc-p">La KAMA è una media mobile adattiva sviluppata da Perry Kaufman (1995). Modifica automaticamente la propria velocità di risposta in funzione del "rumore" di mercato: si muove velocemente nei trend forti e si appiattisce nei mercati laterali.</p>
+    <div class="doc-h3">Formula</div>
+    <div class="doc-formula">ER  = |Close[i] - Close[i-n]| / Σ|Close[j] - Close[j-1]|  (j = i-n+1 ... i)
+SC  = [ER × (fastSC - slowSC) + slowSC]²
+    fastSC = 2/(fast+1)
+    slowSC = 2/(slow+1)
+KAMA[i] = KAMA[i-1] + SC × (Close[i] - KAMA[i-1])</div>
+    <div class="doc-h3">Parametri</div>
+    <table class="doc-table">
+      <thead><tr><th>Versione</th><th>n</th><th>fast</th><th>slow</th><th>Uso</th></tr></thead>
+      <tbody>
+        <tr><td><strong>KAMA Veloce</strong></td><td>10</td><td>5</td><td>20</td><td>Segnale di entrata (BUY1)</td></tr>
+        <tr><td><strong>KAMA Lenta</strong></td><td>10</td><td>2</td><td>30</td><td>Stop loss dinamico</td></tr>
+      </tbody>
+    </table>
+    <div class="doc-note">⚡ Nel sistema RAPTOR la KAMA veloce viene usata per l'entrata, la lenta per lo stop. Il prezzo che taglia la KAMA veloce dal basso è la condizione primaria del BUY1.</div>
+  </div>
+
+  <!-- 3. ER -->
+  <div class="doc-section">
+    <div class="doc-h2">3. ER — Efficiency Ratio</div>
+    <p class="doc-p">L'Efficiency Ratio misura quanto efficiente è il movimento del prezzo: rapporta il movimento netto (direzionale) alla somma di tutti i movimenti assoluti barra per barra. Range [0.0 … 1.0].</p>
+    <div class="doc-formula">ER[i] = |Close[i] - Close[i-n]| / Σ|Close[j] - Close[j-1]|  (j = i-n+1 ... i)
+period = 10</div>
+    <table class="doc-table">
+      <thead><tr><th>Valore ER</th><th>Significato</th><th>Azione nel sistema</th></tr></thead>
+      <tbody>
+        <tr><td>ER &gt; 0.60</td><td>Mercato trending forte</td><td>Condizione BUY3</td></tr>
+        <tr><td>ER 0.40–0.60</td><td>Regime misto</td><td>Condizione BUY1/BUY2</td></tr>
+        <tr><td>ER &lt; 0.30</td><td>Mercato laterale/rumoroso</td><td>Concorre a EXIT3</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 4. SAR -->
+  <div class="doc-section">
+    <div class="doc-h2">4. SAR — Parabolic Stop and Reverse</div>
+    <p class="doc-p">Il SAR parabolico di Wilder è un indicatore di trend che genera un prezzo di stop dinamico che si avvicina progressivamente al prezzo corrente. Quando il prezzo tocca il SAR, il trend si inverte.</p>
+    <div class="doc-formula">SAR[i] = SAR[i-1] + AF × (EP - SAR[i-1])
+AF  = Acceleration Factor (inizia a 0.02, aumenta di 0.02 ad ogni nuovo estremo, max 0.20)
+EP  = Extreme Point (massimo del trend rialzista, minimo del ribassista)
+
+step = 0.02  ·  max = 0.20</div>
+    <div class="doc-note">⚡ Nel sistema RAPTOR lo Stop Loss è calcolato come MAX(SAR, KAMA Lenta) — il più protettivo dei due valori. Il Target è Entrata + (Distanza Entrata-Stop × 2), generando un Risk/Reward 1:2.</div>
+  </div>
+
+  <!-- 5. AO -->
+  <div class="doc-section">
+    <div class="doc-h2">5. AO — Awesome Oscillator</div>
+    <p class="doc-p">Sviluppato da Bill Williams, misura il momentum confrontando due SMA calcolate sui midpoint (High+Low)/2 anziché sui prezzi di chiusura.</p>
+    <div class="doc-formula">Midpoint[i] = (High[i] + Low[i]) / 2
+AO[i] = SMA(Midpoint, 5)[i] - SMA(Midpoint, 34)[i]
+
+SMA veloce = 5 periodi  ·  SMA lenta = 34 periodi (Fibonacci)</div>
+    <div class="doc-note">⚡ AO crescente (anche se negativo) è condizione sufficiente per BUY1. AO &gt; 0 è richiesto da BUY2 e BUY3. Nel sistema RAPTOR si usa la versione "Baffetti": cross dell'AO sopra/sotto lo zero.</div>
+  </div>
+
+  <!-- 6. RSI -->
+  <div class="doc-section">
+    <div class="doc-h2">6. RSI — Relative Strength Index</div>
+    <p class="doc-p">Introdotto da Wilder nel 1978, misura la velocità e la grandezza dei movimenti di prezzo. Normalizza guadagni e perdite medie in un oscillatore [0–100].</p>
+    <div class="doc-formula">AG[i] = Wilder smoothing dei Δ positivi  (n=14)
+AL[i] = Wilder smoothing dei |Δ| negativi (n=14)
+RSI[i] = 100 - (100 / (1 + AG[i]/AL[i]))</div>
+    <table class="doc-table">
+      <thead><tr><th>Zona</th><th>Valore</th><th>Significato</th></tr></thead>
+      <tbody>
+        <tr><td>Ipercomprato</td><td>RSI &gt; 70</td><td>Potenziale inversione ribassista</td></tr>
+        <tr><td>Neutro</td><td>30–70</td><td>Movimento equilibrato</td></tr>
+        <tr><td>Ipervenduto</td><td>RSI &lt; 30</td><td>Potenziale inversione rialzista</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 7. SEGNALI -->
+  <div class="doc-section">
+    <div class="doc-h2">7. Sistema di Segnali BUY / EXIT</div>
+    <p class="doc-p">Il sistema genera 6 segnali operativi in ordine di priorità decrescente. I segnali di EXIT hanno sempre priorità sui BUY. La simulazione performance usa 1 unità acquistata al prezzo di chiusura del giorno del segnale.</p>
+
+    <div class="doc-h3"><span class="sdoc-buy1">BUY 1</span> — Early Entry (posizione 30–40%)</div>
+    <div class="doc-formula">✅ Prezzo taglia KAMA Veloce verso l'alto (crossover)
+✅ ER > 0.40
+✅ AO in crescita (AO[i] > AO[i-1], anche se negativo)
+✅ SAR Bullish (SAR sotto il prezzo)</div>
+
+    <div class="doc-h3"><span class="sdoc-buy2">BUY 2</span> — Confirmation Entry (posizione 70%)</div>
+    <div class="doc-formula">✅ SAR Bullish
+✅ AO > 0
+✅ Prezzo > KAMA Veloce (conferma)
+✅ Score ≥ 65
+✅ ER in crescita (ER[i] > ER[i-1])</div>
+
+    <div class="doc-h3"><span class="sdoc-buy3">BUY 3</span> — Full Entry (posizione 100%)</div>
+    <div class="doc-formula">✅ Tutte le condizioni BUY2
+✅ Score crescente da ultima rilevazione
+✅ ER crescente da ultima rilevazione (doppia conferma)</div>
+
+    <div class="doc-h3"><span class="sdoc-exit1">EXIT 1</span> — Uscita Parziale (vendi 30–50%)</div>
+    <div class="doc-formula">⚠ SAR gira sopra il prezzo (bearish flip)
+⚠ AO si indebolisce (AO[i] < AO[i-1])</div>
+
+    <div class="doc-h3"><span class="sdoc-exit1a">EXIT 1a</span> — Time Stop</div>
+    <div class="doc-formula">⚠ 7 giorni di calendario trascorsi da BUY1
+⚠ Posizione mai confermata da BUY2 o BUY3
+→ Uscita totale per posizione non confermata</div>
+
+    <div class="doc-h3"><span class="sdoc-exit2">EXIT 2</span> — Uscita Forte (vendi 70–80%)</div>
+    <div class="doc-formula">⚠ Score scende di 10+ punti rispetto all'entrata
+⚠ ER < 0.50</div>
+
+    <div class="doc-h3"><span class="sdoc-exit3">EXIT 3</span> — Uscita Totale (100%)</div>
+    <div class="doc-formula">⚠ Score < 35
+oppure
+⚠ 2 o più condizioni negative tra:
+   · Prezzo < KAMA Veloce
+   · AO < 0
+   · ER < 0.30
+   · SAR Bearish</div>
+
+    <div class="doc-h3">Stop Loss &amp; Target</div>
+    <div class="doc-formula">Stop Loss = MAX(SAR, KAMA Lenta)
+Rischio   = Prezzo Entrata - Stop Loss
+Target    = Prezzo Entrata + (Rischio × 2)   → Risk/Reward 1:2</div>
+  </div>
+
+  <!-- 8. NOTE TECNICHE -->
+  <div class="doc-section">
+    <div class="doc-h2">8. Note Tecniche di Implementazione</div>
+    <p class="doc-p">Tutti gli indicatori sono implementati in JavaScript puro, senza librerie di calcolo esterne. Il grafico usa Lightweight Charts v4.1 di TradingView (open-source). Il download Excel usa SheetJS.</p>
+    <table class="doc-table">
+      <thead><tr><th>Componente</th><th>Tecnologia</th><th>Versione</th></tr></thead>
+      <tbody>
+        <tr><td>Grafico</td><td>Lightweight Charts (TradingView)</td><td>4.1.3</td></tr>
+        <tr><td>Export Excel</td><td>SheetJS (xlsx)</td><td>0.18.5</td></tr>
+        <tr><td>Dati</td><td>Yahoo Finance API v8</td><td>—</td></tr>
+        <tr><td>Proxy CORS</td><td>corsproxy.io + allorigins fallback</td><td>—</td></tr>
+        <tr><td>Storico</td><td>2 anni, interval=1d</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="doc-note">⚡ La performance simulata usa sempre 1 unità acquistata al prezzo di chiusura del giorno del segnale. I risultati sono puramente indicativi e non costituiscono consulenza finanziaria.</div>
+    <p class="doc-p" style="margin-top:16px;font-size:12px;color:var(--text3)">RAPTOR WEALTH MERIDIAN · Giorgio Goldoni Consulente Finanziario Autonomo OCF · Documento tecnico ad uso interno</p>
+  </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// GLOBALS
+// ═══════════════════════════════════════════════════════════
+const PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+  'https://thingproxy.freeboard.io/fetch/'
+];
+
+const KF = { n:10, fast:5, slow:20 };
+const KS = { n:10, fast:2, slow:30 };
+
+let chartMain, chartRsi, chartEr, chartAo;
+let sCandle, sKF, sKS, sSAR, sEMA20, sEMA50, sBBup, sBBmid, sBBlo, sRSI, sER, sAO;
+
+let rawBars = [];
+let ind = {};
+let signals = [];
+let trades = [];
+
+const indState = { kf:true, ks:true, sr:true, e20:false, e50:false, bb:false, sg:true };
+const panState = { rsi:true, er:true, ao:true };
+
+// ═══════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════
+const f2 = v => v == null ? '—' : v.toFixed(2);
+const f3 = v => v == null ? '—' : v.toFixed(3);
+const fPct = v => v == null ? '—' : (v>=0?'+':'')+v.toFixed(2)+'%';
+const fDate = ts => { const d=new Date(ts*1000); return d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'2-digit'}); };
+const fDateLong = ts => { const d=new Date(ts*1000); return d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}); };
+
+function showLoading(t){ document.getElementById('overlay').classList.remove('hidden'); document.getElementById('overlayText').textContent=t; }
+function hideLoading(){ document.getElementById('overlay').classList.add('hidden'); }
+function showError(m){ const e=document.getElementById('errorBar'); e.textContent=m; e.style.display='block'; setTimeout(()=>e.style.display='none',6000); }
+
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i)=>{ t.classList.toggle('active',['chart','trades','doc'][i]===name); });
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='chart') setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
+}
+
+// ═══════════════════════════════════════════════════════════
+// FETCH
+// ═══════════════════════════════════════════════════════════
+async function fetchYahoo(ticker) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2y`;
+  for (const px of PROXIES) {
+    try {
+      const r = await fetch(px + encodeURIComponent(url), { signal: AbortSignal.timeout(14000) });
+      if (!r.ok) continue;
+      const data = await r.json();
+      const res = data?.chart?.result?.[0];
+      if (!res) continue;
+      const ts = res.timestamps;
+      const q = res.indicators.quote[0];
+      const bars = [];
+      for (let i=0; i<ts.length; i++) {
+        if (!q.close[i]||!q.open[i]||!q.high[i]||!q.low[i]) continue;
+        bars.push({ time:ts[i], open:q.open[i], high:q.high[i], low:q.low[i], close:q.close[i], volume:q.volume[i]||0 });
+      }
+      if (bars.length < 50) continue;
+      return { bars, meta: res.meta };
+    } catch(e) { continue; }
+  }
+  throw new Error('Impossibile scaricare i dati. Verifica il ticker o riprova.');
+}
+
+// ═══════════════════════════════════════════════════════════
+// CALCOLO INDICATORI
+// ═══════════════════════════════════════════════════════════
+function calcKAMA(cl, p) {
+  const {n,fast,slow} = p;
+  const fSC = 2/(fast+1), sSC = 2/(slow+1);
+  const k = new Array(cl.length).fill(null);
+  if (cl.length <= n) return k;
+  k[n-1] = cl[n-1];
+  for (let i=n; i<cl.length; i++) {
+    const dir = Math.abs(cl[i]-cl[i-n]);
+    let noise=0; for(let j=i-n+1;j<=i;j++) noise+=Math.abs(cl[j]-cl[j-1]);
+    const er = noise===0?0:dir/noise;
+    const sc = Math.pow(er*(fSC-sSC)+sSC, 2);
+    k[i] = k[i-1] + sc*(cl[i]-k[i-1]);
+  }
+  return k;
+}
+
+function calcER(cl, period=10) {
+  const er = new Array(cl.length).fill(null);
+  for (let i=period; i<cl.length; i++) {
+    const dir = Math.abs(cl[i]-cl[i-period]);
+    let noise=0; for(let j=i-period+1;j<=i;j++) noise+=Math.abs(cl[j]-cl[j-1]);
+    er[i] = noise===0?0:dir/noise;
+  }
+  return er;
+}
+
+function calcSAR(bars, step=0.02, maxAF=0.2) {
+  const sarV=new Array(bars.length).fill(null);
+  const sarB=new Array(bars.length).fill(null);
+  let bull = bars[1].close > bars[0].close;
+  let af=step, ep=bull?bars[0].high:bars[0].low, sar=bull?bars[0].low:bars[0].high;
+  for (let i=1; i<bars.length; i++) {
+    sarV[i]=sar; sarB[i]=bull;
+    if (bull) {
+      if (bars[i].low < sar) { bull=false; sar=ep; af=step; ep=bars[i].low; }
+      else {
+        if (bars[i].high>ep) { ep=bars[i].high; af=Math.min(af+step,maxAF); }
+        sar += af*(ep-sar);
+        sar = Math.min(sar, bars[i-1]?.low??sar, i>1?bars[i-2]?.low??sar:sar);
+      }
+    } else {
+      if (bars[i].high > sar) { bull=true; sar=ep; af=step; ep=bars[i].high; }
+      else {
+        if (bars[i].low<ep) { ep=bars[i].low; af=Math.min(af+step,maxAF); }
+        sar += af*(ep-sar);
+        sar = Math.max(sar, bars[i-1]?.high??sar, i>1?bars[i-2]?.high??sar:sar);
+      }
+    }
+  }
+  return { sarV, sarB };
+}
+
+function calcEMA(cl, period) {
+  const ema=new Array(cl.length).fill(null);
+  const k=2/(period+1);
+  let s=0; for(let i=0;i<period;i++) s+=cl[i]; ema[period-1]=s/period;
+  for(let i=period;i<cl.length;i++) ema[i]=cl[i]*k+ema[i-1]*(1-k);
+  return ema;
+}
+
+function calcBB(cl, period=20, mult=2) {
+  const mid=new Array(cl.length).fill(null), up=new Array(cl.length).fill(null), lo=new Array(cl.length).fill(null);
+  for(let i=period-1;i<cl.length;i++) {
+    const sl=cl.slice(i-period+1,i+1), m=sl.reduce((a,b)=>a+b,0)/period;
+    const std=Math.sqrt(sl.reduce((a,b)=>a+(b-m)**2,0)/period);
+    mid[i]=m; up[i]=m+mult*std; lo[i]=m-mult*std;
+  }
+  return { mid, up, lo };
+}
+
+function calcRSI(cl, period=14) {
+  const rsi=new Array(cl.length).fill(null);
+  let ag=0,al=0;
+  for(let i=1;i<=period;i++){ const d=cl[i]-cl[i-1]; if(d>0)ag+=d; else al+=Math.abs(d); }
+  ag/=period; al/=period;
+  rsi[period]=al===0?100:100-100/(1+ag/al);
+  for(let i=period+1;i<cl.length;i++) {
+    const d=cl[i]-cl[i-1];
+    ag=(ag*(period-1)+Math.max(d,0))/period;
+    al=(al*(period-1)+Math.max(-d,0))/period;
+    rsi[i]=al===0?100:100-100/(1+ag/al);
+  }
+  return rsi;
+}
+
+function calcAO(bars) {
+  const mid=bars.map(b=>(b.high+b.low)/2);
+  const ao=new Array(bars.length).fill(null);
+  const sma=(arr,i,p)=>{ let s=0; for(let j=i-p+1;j<=i;j++) s+=arr[j]; return s/p; };
+  for(let i=33;i<bars.length;i++) ao[i]=sma(mid,i,5)-sma(mid,i,34);
+  return ao;
+}
+
+function calcScore(i, cl, kf, er, sarB, ao) {
+  let s=50;
+  if(kf[i]!=null && cl[i]>kf[i]) s+=10;
+  if(er[i]!=null){ if(er[i]>0.6)s+=15; else if(er[i]>0.4)s+=8; else if(er[i]<0.3)s-=10; }
+  if(sarB[i]) s+=10;
+  if(ao[i]!=null && ao[i]>0) s+=10;
+  if(ao[i]!=null && ao[i]<0) s-=5;
+  return Math.max(0,Math.min(100,s));
+}
+
+// ═══════════════════════════════════════════════════════════
+// SEGNALI
+// ═══════════════════════════════════════════════════════════
+function calcSignals(bars, ind) {
+  const {kf,ks,sarV,sarB,er,ao} = ind;
+  const cl=bars.map(b=>b.close), n=bars.length;
+  const sigs=new Array(n).fill('NONE');
+  const scores=new Array(n).fill(0);
+  for(let i=1;i<n;i++) scores[i]=calcScore(i,cl,kf,er,sarB,ao);
+
+  for(let i=35;i<n;i++) {
+    const p=cl[i], pP=cl[i-1];
+    const kfV=kf[i], kfP=kf[i-1];
+    const klV=ks[i];
+    const erV=er[i], erP=er[i-1];
+    const aoV=ao[i], aoP=ao[i-1];
+    const sb=sarB[i], sbP=sarB[i-1];
+    const sc=scores[i], scP=scores[i-1];
+    if(kfV==null||klV==null||erV==null||aoV==null) continue;
+
+    const pAboveKF = p>kfV;
+    const crossKF  = p>kfV && pP<=kfP;
+    const erGrow   = erV>(erP||0);
+    const aoGrow   = aoV>(aoP||0);
+    const aoPos    = aoV>0;
+    const scGrow   = sc>scP;
+
+    // EXIT3 — priorità massima
+    const neg=[!pAboveKF, !aoPos, erV<0.3, !sb].filter(Boolean).length;
+    if(sc<35||neg>=2){ sigs[i]='EXIT3'; continue; }
+    // EXIT2
+    if(sc<50&&erV<0.5){ sigs[i]='EXIT2'; continue; }
+    // EXIT1
+    if(!sb||(!aoPos&&sc<65)){ sigs[i]='EXIT1'; continue; }
+    // BUY3
+    if(sb&&aoPos&&pAboveKF&&sc>=65&&erGrow&&scGrow&&erV>0.6){ sigs[i]='BUY3'; continue; }
+    // BUY2
+    if(sb&&aoPos&&pAboveKF&&sc>=65&&erGrow){ sigs[i]='BUY2'; continue; }
+    // BUY1
+    if(pAboveKF&&erV>0.4&&aoGrow&&sb){ sigs[i]='BUY1'; continue; }
+    sigs[i]='WATCH';
+  }
+  return sigs;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIMULAZIONE TRADE
+// ═══════════════════════════════════════════════════════════
+function exitReason(sig, isTimeStop) {
+  if(isTimeStop) return 'Time Stop 7 giorni senza conferma BUY2/BUY3';
+  const m = { EXIT1:'SAR flip + AO indebolito (uscita parziale)', EXIT2:'Score -10pt + ER < 0.50 (uscita forte)', EXIT3:'Score < 35 o 2+ condizioni negative (uscita totale)', OPEN:'Posizione aperta al termine del periodo' };
+  return m[sig]||sig;
+}
+function entryReason(sig) {
+  const m = { BUY1:'Prezzo > KAMA V + ER > 0.4 + AO crescente + SAR bull', BUY2:'SAR bull + AO > 0 + KAMA conf + score ≥ 65 + ER crescente', BUY3:'BUY2 + score crescente + ER crescente > 0.6' };
+  return m[sig]||sig;
+}
+
+function simulateTrades(bars, sigs) {
+  const result=[];
+  let inTrade=false, entIdx=-1, entPrice=0, entSig='', days=0;
+  for(let i=0;i<bars.length;i++){
+    const sig=sigs[i], price=bars[i].close;
+    if(!inTrade){
+      if(['BUY1','BUY2','BUY3'].includes(sig)){
+        inTrade=true; entIdx=i; entPrice=price; entSig=sig; days=0;
+      }
+    } else {
+      days++;
+      const timeStop = entSig==='BUY1' && days>=7 && !['BUY2','BUY3'].includes(sig);
+      const isExit = ['EXIT1','EXIT2','EXIT3'].includes(sig) || timeStop || i===bars.length-1;
+      if(isExit){
+        const exitSig = timeStop?'EXIT1a':(i===bars.length-1&&!['EXIT1','EXIT2','EXIT3'].includes(sig)?'OPEN':sig);
+        const pnlAbs = price - entPrice;
+        const pnlPct = (pnlAbs/entPrice)*100;
+        result.push({
+          entIdx, exitIdx:i,
+          entTime:bars[entIdx].time, exitTime:bars[i].time,
+          entPrice, exitPrice:price,
+          pnlAbs, pnlPct,
+          entSig, exitSig,
+          days,
+          isOpen: exitSig==='OPEN',
+          entReason: entryReason(entSig),
+          exitReason: exitReason(exitSig, timeStop)
+        });
+        inTrade=false;
+      }
+    }
+  }
+  return result;
+}
+
+function perfStats(trades) {
+  const closed=trades.filter(t=>!t.isOpen);
+  const wins=closed.filter(t=>t.pnlPct>0);
+  const pnls=closed.map(t=>t.pnlPct);
+  const totalPnl=pnls.reduce((a,b)=>a+b,0);
+  // Max drawdown
+  let peak=0,dd=0,eq=0;
+  closed.forEach(t=>{ eq+=t.pnlPct; if(eq>peak)peak=eq; const cur=peak-eq; if(cur>dd)dd=cur; });
+  return {
+    total:trades.length, closed:closed.length, wins:wins.length,
+    wr:closed.length?(wins.length/closed.length)*100:0,
+    totalPnl, best:pnls.length?Math.max(...pnls):0, worst:pnls.length?Math.min(...pnls):0,
+    avg:closed.length?totalPnl/closed.length:0, dd
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// CHART INIT
+// ═══════════════════════════════════════════════════════════
+function initCharts() {
+  const base = {
+    layout:{ background:{color:'#ffffff'}, textColor:'#4b5563' },
+    grid:{ vertLines:{color:'#f0f2f5'}, horzLines:{color:'#f0f2f5'} },
+    crosshair:{ mode:1 },
+    rightPriceScale:{ borderColor:'#d0d5de' },
+    timeScale:{ borderColor:'#d0d5de', timeVisible:true, secondsVisible:false },
+  };
+
+  chartMain = LightweightCharts.createChart(document.getElementById('chart-main'), {
+    ...base,
+    width: document.getElementById('chart-main').offsetWidth,
+    height: document.getElementById('chart-main').offsetHeight,
+  });
+  sCandle = chartMain.addCandlestickSeries({ upColor:'#059669',downColor:'#dc2626',borderUpColor:'#059669',borderDownColor:'#dc2626',wickUpColor:'#059669',wickDownColor:'#dc2626' });
+  sKF   = chartMain.addLineSeries({ color:'#b45309', lineWidth:1.5, title:'KAMA V' });
+  sKS   = chartMain.addLineSeries({ color:'#7c3aed', lineWidth:1.5, title:'KAMA L' });
+  sSAR  = chartMain.addLineSeries({ color:'#db2777', lineWidth:1, lineStyle:2, title:'SAR' });
+  sEMA20= chartMain.addLineSeries({ color:'#0891b2', lineWidth:1, title:'EMA20', visible:false });
+  sEMA50= chartMain.addLineSeries({ color:'#c2410c', lineWidth:1, title:'EMA50', visible:false });
+  sBBup = chartMain.addLineSeries({ color:'#64748b', lineWidth:1, lineStyle:1, visible:false });
+  sBBmid= chartMain.addLineSeries({ color:'#64748b', lineWidth:1, lineStyle:2, visible:false });
+  sBBlo = chartMain.addLineSeries({ color:'#64748b', lineWidth:1, lineStyle:1, visible:false });
+
+  const subBase = { ...base, timeScale:{ visible:false }, width:0, height:72 };
+
+  chartRsi = LightweightCharts.createChart(document.getElementById('chart-rsi'), { ...subBase, width:document.getElementById('chart-rsi').offsetWidth });
+  sRSI = chartRsi.addLineSeries({ color:'#6d28d9', lineWidth:1.5 });
+
+  chartEr = LightweightCharts.createChart(document.getElementById('chart-er'), { ...subBase, width:document.getElementById('chart-er').offsetWidth });
+  sER = chartEr.addLineSeries({ color:'#0f766e', lineWidth:1.5 });
+
+  chartAo = LightweightCharts.createChart(document.getElementById('chart-ao'), { ...subBase, width:document.getElementById('chart-ao').offsetWidth });
+  sAO = chartAo.addHistogramSeries({ color:'#b45309', base:0 });
+
+  // Sync
+  chartMain.timeScale().subscribeVisibleTimeRangeChange(r => {
+    if(!r) return;
+    if(panState.rsi) chartRsi.timeScale().setVisibleRange(r);
+    if(panState.er)  chartEr.timeScale().setVisibleRange(r);
+    if(panState.ao)  chartAo.timeScale().setVisibleRange(r);
+  });
+
+  window.addEventListener('resize', () => {
+    const m=document.getElementById('chart-main');
+    if(m) chartMain.resize(m.offsetWidth, m.offsetHeight);
+    ['rsi','er','ao'].forEach(id => {
+      const el=document.getElementById('chart-'+id);
+      const ch = id==='rsi'?chartRsi:id==='er'?chartEr:chartAo;
+      if(el && panState[id]) ch.resize(el.offsetWidth, 72);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER CHARTS
+// ═══════════════════════════════════════════════════════════
+function toLine(bars, arr) { return bars.map((b,i)=>arr[i]!=null?{time:b.time,value:arr[i]}:null).filter(Boolean); }
+function toHist(bars, arr, cfn) { return bars.map((b,i)=>arr[i]!=null?{time:b.time,value:arr[i],color:cfn(arr[i])}:null).filter(Boolean); }
+
+function renderCharts() {
+  sCandle.setData(rawBars);
+  sKF.setData(toLine(rawBars, ind.kf));
+  sKS.setData(toLine(rawBars, ind.ks));
+  sSAR.setData(toLine(rawBars, ind.sarV));
+  sEMA20.setData(toLine(rawBars, ind.ema20));
+  sEMA50.setData(toLine(rawBars, ind.ema50));
+  sBBup.setData(toLine(rawBars, ind.bb.up));
+  sBBmid.setData(toLine(rawBars, ind.bb.mid));
+  sBBlo.setData(toLine(rawBars, ind.bb.lo));
+  sRSI.setData(toLine(rawBars, ind.rsi));
+  sER.setData(toLine(rawBars, ind.er));
+  sAO.setData(toHist(rawBars, ind.ao, v=>v>=0?'#059669':'#dc2626'));
+  applyMarkers();
+}
+
+function applyMarkers() {
+  if(!indState.sg) { sCandle.setMarkers([]); return; }
+  const markers=[];
+  const cfg = {
+    BUY1:  { pos:'belowBar', color:'#0ea5e9', shape:'arrowUp',   text:'B1', size:1   },
+    BUY2:  { pos:'belowBar', color:'#059669', shape:'arrowUp',   text:'B2', size:1.5 },
+    BUY3:  { pos:'belowBar', color:'#16a34a', shape:'arrowUp',   text:'B3', size:2   },
+    EXIT1: { pos:'aboveBar', color:'#d97706', shape:'arrowDown', text:'E1', size:1   },
+    EXIT2: { pos:'aboveBar', color:'#ea580c', shape:'arrowDown', text:'E2', size:1.5 },
+    EXIT3: { pos:'aboveBar', color:'#dc2626', shape:'arrowDown', text:'E3', size:2   },
+  };
+  for(let i=0;i<rawBars.length;i++) {
+    const c=cfg[signals[i]];
+    if(c) markers.push({ time:rawBars[i].time, position:c.pos, color:c.color, shape:c.shape, text:c.text, size:c.size });
+  }
+  sCandle.setMarkers(markers);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER SIDEBAR
+// ═══════════════════════════════════════════════════════════
+function renderSidebar() {
+  const last=rawBars.length-1;
+  const sig=signals[last];
+  const cl=rawBars[last].close;
+  const kfV=ind.kf[last], ksV=ind.ks[last];
+  const sarVV=ind.sarV[last], sarBV=ind.sarB[last];
+  const erV=ind.er[last], erP=ind.er[last-1];
+  const aoV=ind.ao[last], aoP=ind.ao[last-1];
+  const rsiV=ind.rsi[last];
+
+  // Badge
+  const badgeMap = {
+    BUY1:'BUY 1 — Early Entry|sb-buy1', BUY2:'BUY 2 — Confirmation|sb-buy2', BUY3:'BUY 3 — Full Entry|sb-buy3',
+    EXIT1:'EXIT 1 — Parziale|sb-exit1', EXIT1a:'EXIT 1a — Time Stop|sb-exit1a', EXIT2:'EXIT 2 — Forte|sb-exit2', EXIT3:'EXIT 3 — Totale|sb-exit3',
+    WATCH:'WATCH — Attesa|sb-watch', NONE:'NESSUN SEGNALE|sb-none'
+  };
+  const [label,cls]=(badgeMap[sig]||'— NESSUN DATO|sb-none').split('|');
+  const bd=document.getElementById('sigBadge'); bd.textContent=label; bd.className='sig-badge '+cls;
+
+  // Conditions
+  const conds=[
+    { t:'Prezzo > KAMA Veloce', ok: kfV!=null&&cl>kfV },
+    { t:'SAR Bullish', ok: sarBV },
+    { t:'ER > 0.40', ok: erV!=null&&erV>0.4 },
+    { t:'ER in crescita', ok: erV!=null&&erP!=null&&erV>erP },
+    { t:'AO > 0', ok: aoV!=null&&aoV>0 },
+    { t:'AO in crescita', ok: aoV!=null&&aoP!=null&&aoV>aoP },
+  ];
+  document.getElementById('condList').innerHTML=conds.map(c=>`<div class="cond-item"><div class="cdot ${c.ok?'ok':'ko'}"></div><span>${c.t}</span></div>`).join('');
+
+  // Metrics
+  const setM=(id,v,cls)=>{ const e=document.getElementById(id); e.textContent=v; e.className='m-val'+(cls?' '+cls:''); };
+  setM('mv-kf', f2(kfV), cl>kfV?'bull':'bear');
+  setM('mv-ks', f2(ksV), cl>ksV?'bull':'bear');
+  setM('mv-sr', f2(sarVV), sarBV?'bull':'bear');
+  setM('mv-er', f3(erV), erV>0.6?'bull':erV>0.4?'warn':'bear');
+  setM('mv-ao', f2(aoV), aoV>0?'bull':'bear');
+  setM('mv-rsi', f2(rsiV), rsiV>70?'bear':rsiV<30?'bull':'');
+
+  // Levels
+  const stop=Math.max(sarVV??0, ksV??0);
+  const risk=Math.abs(cl-stop);
+  const tgt=cl+risk*2;
+  document.getElementById('lv-entry').textContent=f2(cl);
+  document.getElementById('lv-stop').textContent=f2(stop);
+  document.getElementById('lv-tgt').textContent=f2(tgt);
+
+  // Quick perf
+  const st=perfStats(trades);
+  document.getElementById('qp-tot').textContent=st.total;
+  const wrEl=document.getElementById('qp-wr'); wrEl.textContent=f2(st.wr)+'%'; wrEl.className='m-val '+(st.wr>=50?'bull':'bear');
+  const pnlEl=document.getElementById('qp-pnl'); pnlEl.textContent=fPct(st.totalPnl); pnlEl.className='m-val '+(st.totalPnl>=0?'bull':'bear');
+  const avgEl=document.getElementById('qp-avg'); avgEl.textContent=fPct(st.avg); avgEl.className='m-val '+(st.avg>=0?'bull':'bear');
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER TRADES TAB
+// ═══════════════════════════════════════════════════════════
+function renderTrades(ticker) {
+  const st=perfStats(trades);
+  document.getElementById('tradesTitle').textContent=`Trade & Performance — ${ticker}`;
+  document.getElementById('tradesSubtitle').textContent=`${rawBars.length} candele · ${fDate(rawBars[0].time)} → ${fDate(rawBars[rawBars.length-1].time)}`;
+
+  const setPC=(id,v,cls)=>{ const e=document.getElementById(id); e.textContent=v; if(cls) e.className='pc-val '+cls; };
+  setPC('pc-tot', st.total);
+  setPC('pc-cls', st.closed);
+  setPC('pc-wr',  f2(st.wr)+'%', st.wr>=50?'bull':'bear');
+  setPC('pc-pnl', fPct(st.totalPnl), st.totalPnl>=0?'bull':'bear');
+  setPC('pc-best', '+'+f2(st.best)+'%', 'bull');
+  setPC('pc-worst', f2(st.worst)+'%', 'bear');
+  setPC('pc-avg', fPct(st.avg), st.avg>=0?'bull':'bear');
+  setPC('pc-dd', '-'+f2(st.dd)+'%', 'bear');
+
+  // Equity curve
+  renderEquity();
+
+  // Table
+  const sigPill=(s)=>{
+    const m={BUY1:'sp-buy1 B1',BUY2:'sp-buy2 B2',BUY3:'sp-buy3 B3',EXIT1:'sp-exit1 EXIT1',EXIT1a:'sp-exit1a EXIT1a',EXIT2:'sp-exit2 EXIT2',EXIT3:'sp-exit3 EXIT3',OPEN:'sp-open APERTO'};
+    const [cls,lbl]=(m[s]||'sp-open '+s).split(' ');
+    return `<span class="sig-pill ${cls}">${lbl||s}</span>`;
+  };
+
+  if(!trades.length) {
+    document.getElementById('tradesTbody').innerHTML='<tr><td colspan="12" class="no-data-msg">Nessun trade nel periodo</td></tr>';
+    return;
+  }
+
+  document.getElementById('tradesTbody').innerHTML=[...trades].reverse().map((t,idx)=>{
+    const num=trades.length-idx;
+    const dur=Math.round((t.exitTime-t.entTime)/86400);
+    const pnlCls=t.pnlPct>=0?'pnl-pos':'pnl-neg';
+    return `<tr>
+      <td class="mono">${num}</td>
+      <td>${sigPill(t.entSig)}</td>
+      <td class="mono">${fDateLong(t.entTime)}</td>
+      <td class="mono">${f2(t.entPrice)}</td>
+      <td>${sigPill(t.exitSig)}</td>
+      <td class="mono">${t.isOpen?'—':fDateLong(t.exitTime)}</td>
+      <td class="mono">${t.isOpen?'—':f2(t.exitPrice)}</td>
+      <td class="mono">${dur}</td>
+      <td class="${pnlCls}">${t.isOpen?'—':(t.pnlAbs>=0?'+':'')+f2(t.pnlAbs)}</td>
+      <td class="${pnlCls}">${t.isOpen?'—':fPct(t.pnlPct)}</td>
+      <td>${t.isOpen?'<span class="sig-pill sp-open">APERTO</span>':'<span class="sig-pill" style="background:#f0f2f5;color:#6b7280">CHIUSO</span>'}</td>
+      <td style="font-size:10px;color:var(--text3);max-width:180px">${t.isOpen?t.entReason:t.exitReason}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderEquity() {
+  const canvas=document.getElementById('equity-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.offsetWidth, H=90;
+  canvas.width=W*2; canvas.height=H*2; ctx.scale(2,2);
+
+  const closed=trades.filter(t=>!t.isOpen);
+  if(!closed.length) { ctx.clearRect(0,0,W,H); return; }
+
+  const eq=[0]; closed.forEach(t=>eq.push(eq[eq.length-1]+t.pnlPct));
+  const minE=Math.min(...eq), maxE=Math.max(...eq), range=maxE-minE||1;
+  const tx=i=>(i/(eq.length-1))*W;
+  const ty=v=>H-5-((v-minE)/range)*(H-15);
+
+  ctx.clearRect(0,0,W,H);
+
+  // Fill gradient
+  const grad=ctx.createLinearGradient(0,0,0,H);
+  const isPos=eq[eq.length-1]>=0;
+  grad.addColorStop(0, isPos?'rgba(5,150,105,.2)':'rgba(220,38,38,.2)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.beginPath();
+  ctx.moveTo(tx(0),ty(eq[0]));
+  for(let i=1;i<eq.length;i++) ctx.lineTo(tx(i),ty(eq[i]));
+  ctx.lineTo(tx(eq.length-1),H); ctx.lineTo(0,H); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(tx(0),ty(eq[0]));
+  for(let i=1;i<eq.length;i++) ctx.lineTo(tx(i),ty(eq[i]));
+  ctx.strokeStyle=isPos?'#059669':'#dc2626';
+  ctx.lineWidth=1.5; ctx.stroke();
+
+  // Zero
+  const z=ty(0);
+  if(z>5&&z<H-5){
+    ctx.beginPath(); ctx.moveTo(0,z); ctx.lineTo(W,z);
+    ctx.strokeStyle='#d0d5de'; ctx.lineWidth=1; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOGGLE INDICATORS / PANELS
+// ═══════════════════════════════════════════════════════════
+function togInd(name) {
+  indState[name]=!indState[name];
+  document.getElementById('btn-'+name).classList.toggle('on', indState[name]);
+  const map={ kf:sKF, ks:sKS, sr:sSAR, e20:sEMA20, e50:sEMA50 };
+  if(map[name]) { map[name].applyOptions({visible:indState[name]}); return; }
+  if(name==='bb') { [sBBup,sBBmid,sBBlo].forEach(s=>s.applyOptions({visible:indState.bb})); return; }
+  if(name==='sg') applyMarkers();
+}
+
+function togPanel(name) {
+  panState[name]=!panState[name];
+  document.getElementById('btn-'+name).classList.toggle('on', panState[name]);
+  const panel=document.getElementById('panel-'+name);
+  panel.style.display=panState[name]?'':'none';
+  setTimeout(()=>window.dispatchEvent(new Event('resize')),50);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXCEL DOWNLOAD
+// ═══════════════════════════════════════════════════════════
+function downloadExcel() {
+  if(!trades.length) return;
+  const ticker=document.getElementById('tickerInput').value.trim().toUpperCase();
+  const rows=trades.map((t,i)=>({
+    '#': i+1,
+    'Ticker': ticker,
+    'Segnale Entrata': t.entSig,
+    'Motivo Entrata': t.entReason,
+    'Data Entrata': fDateLong(t.entTime),
+    'Prezzo Entrata': t.entPrice,
+    'Segnale Uscita': t.exitSig,
+    'Motivo Uscita': t.exitReason,
+    'Data Uscita': t.isOpen?'APERTO':fDateLong(t.exitTime),
+    'Prezzo Uscita': t.isOpen?'—':t.exitPrice,
+    'Durata (gg)': Math.round((t.exitTime-t.entTime)/86400),
+    'P&L €': t.isOpen?'—':parseFloat(t.pnlAbs.toFixed(4)),
+    'P&L %': t.isOpen?'—':parseFloat(t.pnlPct.toFixed(4)),
+    'Stato': t.isOpen?'APERTO':'CHIUSO'
+  }));
+
+  const st=perfStats(trades);
+  const summary=[
+    {}, { 'Ticker':ticker, '# trade totali':st.total, 'Trade chiusi':st.closed, 'Win Rate %':parseFloat(f2(st.wr)), 'P&L Tot %':parseFloat(f2(st.totalPnl)), 'Best Trade %':parseFloat(f2(st.best)), 'Worst Trade %':parseFloat(f2(st.worst)), 'Avg Trade %':parseFloat(f2(st.avg)), 'Max Drawdown %':parseFloat(f2(st.dd)) }
+  ];
+
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.json_to_sheet(rows);
+  const ws2=XLSX.utils.json_to_sheet(summary);
+  XLSX.utils.book_append_sheet(wb,ws1,'Trade');
+  XLSX.utils.book_append_sheet(wb,ws2,'Riepilogo');
+  XLSX.writeFile(wb, `RAPTOR_${ticker}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// LOAD TICKER
+// ═══════════════════════════════════════════════════════════
+async function loadTicker() {
+  const ticker=document.getElementById('tickerInput').value.trim().toUpperCase();
+  if(!ticker) return;
+  showLoading('CARICAMENTO ' + ticker);
+  try {
+    const { bars, meta } = await fetchYahoo(ticker);
+    showLoading('CALCOLO INDICATORI');
+    const cl=bars.map(b=>b.close);
+    const kf=calcKAMA(cl,KF), ks=calcKAMA(cl,KS);
+    const {sarV,sarB}=calcSAR(bars);
+    const er=calcER(cl), ao=calcAO(bars), rsi=calcRSI(cl);
+    const ema20=calcEMA(cl,20), ema50=calcEMA(cl,50);
+    const bb=calcBB(cl);
+    ind={ kf,ks,sarV,sarB,er,ao,rsi,ema20,ema50,bb };
+
+    showLoading('CALCOLO SEGNALI');
+    rawBars=bars;
+    signals=calcSignals(bars,ind);
+
+    showLoading('SIMULAZIONE TRADE');
+    trades=simulateTrades(bars,signals);
+
+    showLoading('RENDERING');
+    renderCharts();
+    renderSidebar();
+    renderTrades(ticker);
+
+    // Price header
+    const last=bars[bars.length-1], prev=bars[bars.length-2];
+    const chg=((last.close-prev.close)/prev.close)*100;
+    document.getElementById('hpVal').textContent=f2(last.close);
+    document.getElementById('hpChg').textContent=fPct(chg)+' oggi';
+    document.getElementById('hpChg').className='header-price-chg '+(chg>=0?'pos':'neg');
+    document.getElementById('headerPrice').style.display='';
+
+    // Enable excel
+    document.getElementById('btnExcel').disabled=false;
+    document.getElementById('btnExcel2').disabled=false;
+
+    hideLoading();
+  } catch(e) {
+    hideLoading();
+    showError(e.message||'Errore nel caricamento');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  initCharts();
+  hideLoading();
+  document.getElementById('tickerInput').addEventListener('keydown', e => { if(e.key==='Enter') loadTicker(); });
+});
+</script>
+</body>
+</html>
