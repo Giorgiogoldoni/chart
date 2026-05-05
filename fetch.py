@@ -489,32 +489,66 @@ def process_ticker(entry):
             if s in ('BUY1','BUY2','BUY3'): momentum_days += 1
             else: break
 
+        # Data ultimo segnale BUY (quando è scattato)
+        signal_date = None
+        for i in range(last, -1, -1):
+            if signals[i] in ('BUY1','BUY2','BUY3'):
+                if i == 0 or signals[i-1] not in ('BUY1','BUY2','BUY3'):
+                    signal_date = bars[i]['time']
+                    break
+            elif signals[i] not in ('BUY1','BUY2','BUY3'):
+                break
+
         # ER trend
         er_trend = '▲' if (er[last] or 0) > (er[last-1] or 0) else '▼'
 
         # Variazione oggi
         today_chg = round((bars[last]['close']-bars[last-1]['close'])/bars[last-1]['close']*100, 2) if last > 0 else 0
 
+        # Rendimento 6 mesi (circa 126 barre)
+        idx_6m = max(0, last - 126)
+        ret_6m = round((closes[last] - closes[idx_6m]) / closes[idx_6m] * 100, 2) if closes[idx_6m] else 0
+
+        # Filtro downtrend strutturale permanente:
+        # prezzo sotto KAMA Lenta da > 30 giorni E rendimento 6m < -25%
+        days_below_ks = 0
+        for i in range(last, -1, -1):
+            if kama_s[i] is not None and closes[i] < kama_s[i]:
+                days_below_ks += 1
+            else:
+                break
+        structural_downtrend = (days_below_ks > 30 and ret_6m < -25)
+
+        # Score composito per candidati (ER × score × log(momentum+1))
+        import math as _math
+        er_last = er[last] or 0
+        composite_score = round(er_last * scores[last] * _math.log(momentum_days + 1 + 1), 4)
+
         result = {
-            'ticker':        ticker,
-            'name':          name,
-            'updated':       datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-            'bars':          bars,
-            'signal':        current_signal,
-            'score':         scores[last],
-            'er':            round(er[last],4) if er[last] is not None else None,
-            'er_trend':      er_trend,
-            'ao':            round(ao[last],4) if ao[last] is not None else None,
-            'sar_bull':      bool(sar_b[last]) if sar_b[last] is not None else False,
-            'kama_fast':     round(kama_f[last],4) if kama_f[last] is not None else None,
-            'kama_slow':     round(kama_s[last],4) if kama_s[last] is not None else None,
-            'sar':           round(sar_v[last],4) if sar_v[last] is not None else None,
-            'rsi':           round(rsi[last],2) if rsi[last] is not None else None,
-            'close':         bars[last]['close'],
-            'today_chg':     today_chg,
-            'momentum_days': momentum_days,
-            'perf':          perf,
-            'trades':        trades[-20:],  # ultimi 20 trade per risparmio spazio
+            'ticker':               ticker,
+            'name':                 name,
+            'updated':              datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'bars':                 bars,
+            'signal':               current_signal,
+            'score':                scores[last],
+            'er':                   round(er[last],4) if er[last] is not None else None,
+            'er_trend':             er_trend,
+            'ao':                   round(ao[last],4) if ao[last] is not None else None,
+            'sar_bull':             bool(sar_b[last]) if sar_b[last] is not None else False,
+            'kama_fast':            round(kama_f[last],4) if kama_f[last] is not None else None,
+            'kama_slow':            round(kama_s[last],4) if kama_s[last] is not None else None,
+            'sar':                  round(sar_v[last],4) if sar_v[last] is not None else None,
+            'rsi':                  round(rsi[last],2) if rsi[last] is not None else None,
+            'close':                bars[last]['close'],
+            'today_chg':            today_chg,
+            'ret_6m':               ret_6m,
+            'momentum_days':        momentum_days,
+            'signal_date':          signal_date,
+            'structural_downtrend': structural_downtrend,
+            'days_below_ks':        days_below_ks,
+            'composite_score':      composite_score,
+            'perf':                 perf,
+            'trades':               trades[-20:],
         }
         return result
 
@@ -543,19 +577,25 @@ def main():
 
             # Aggiungi al ranking index (senza bars per leggerezza)
             index.append({
-                'ticker':        result['ticker'],
-                'name':          result['name'],
-                'signal':        result['signal'],
-                'score':         result['score'],
-                'er':            result['er'],
-                'er_trend':      result['er_trend'],
-                'ao':            result['ao'],
-                'sar_bull':      result['sar_bull'],
-                'close':         result['close'],
-                'today_chg':     result['today_chg'],
-                'momentum_days': result['momentum_days'],
-                'perf':          result['perf'],
-                'updated':       result['updated'],
+                'ticker':               result['ticker'],
+                'name':                 result['name'],
+                'signal':               result['signal'],
+                'score':                result['score'],
+                'er':                   result['er'],
+                'er_trend':             result['er_trend'],
+                'ao':                   result['ao'],
+                'sar_bull':             result['sar_bull'],
+                'rsi':                  result['rsi'],
+                'close':                result['close'],
+                'today_chg':            result['today_chg'],
+                'ret_6m':               result['ret_6m'],
+                'momentum_days':        result['momentum_days'],
+                'signal_date':          result['signal_date'],
+                'structural_downtrend': result['structural_downtrend'],
+                'days_below_ks':        result['days_below_ks'],
+                'composite_score':      result['composite_score'],
+                'perf':                 result['perf'],
+                'updated':              result['updated'],
             })
             ok += 1
         else:
